@@ -11,18 +11,13 @@ dataSet = loadmat('MouseKidney_green')
 
 wlength = dataSet['wlength']
 psize = 1.845e-6/4
-n = 804
-m = 804 
+n = 4*1520
+m = 4*1520 
 kmax = np.pi/psize
 k0 = 2*np.pi/wlength
 
 
-kxVal = -kmax
-kx2 = []
-kx2.append(kxVal)
-while kxVal <= kmax:
-    kxVal = kxVal+ (kmax/((n-1)/2))
-    kx2.append(kxVal)
+kx2 = np.arange(-kmax, kmax+ (kmax/((n-1)/2)), (kmax/((n-1)/2)))
     
 kyVal = -kmax
 ky2 = []

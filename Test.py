@@ -4,7 +4,7 @@ Created on Wed Nov 24 22:57:09 2021
 
 @author: freds
 """
-from scipy.io import loadmat
+import os
 import cv2
 import numpy as np
 import math
@@ -181,30 +181,46 @@ def gzn(tpixel, NApixel,m,n):
     return z
         
     
-dataSet = loadmat('MouseKidney_green')
-imgs = dataSet['imlow_HDR']
+def cropImage (img, cropfactor):
+    num, cropy, cropx = img.shape
+    cropystart = int(cropy/cropfactor - cropy/(cropfactor*2))
+    cropyend = int(cropy/cropfactor + cropy/(cropfactor*2))
+    cropxstart = int(cropx/cropfactor - cropy/(cropfactor*2))
+    cropxend = int(cropx/cropfactor + cropy/(cropfactor*2))
+    
+    img = img[:, cropystart:cropyend, cropxstart:cropxend]
+    return img
 
-for i in range(225):
-    dst = np.zeros(shape=(201,201))
-    #imgs[:,:,i] = cv2.normalize(imgs[:,:,i],dst,0,1,cv2.NORM_MINMAX)
+instances = []
+
+# Load in the images
+for filepath in os.listdir('Experiment DataSet\img_database_jpg_2022_03_09_1/'):
+    instances.append(cv2.imread('Experiment DataSet\img_database_jpg_2022_03_09_1/'+filepath,1))
+
+dataSet = np.asarray(instances)
+greenDataSet = dataSet[:,:,:,1]
+
+greenDataSet = cropImage(greenDataSet, 2)
+
+imgs = np.transpose(greenDataSet, (1,2,0))
+dst = np.zeros(shape=(1520,1520))
 
 is_show = 'centre' #'centre' shows first low res raw image; 'all' loads all dynamically
 if (is_show == 'centre'):
-    cv2.imshow("Mouse Kidney", imgs[:,:,1])
+    cv2.imshow("Experiment Data", imgs[:,:,1])
 elif(is_show=='all'):
     for i in range(225):
-        cv2.imshow("Mouse Kidney",imgs[:,:,i])
+        cv2.imshow("Experiment Data",imgs[:,:,i])
         cv2.waitKey()
         cv2.destroyAllWindows()
-
 #Setup experiment Parameters   
 xstart = 18 #absolute coordinate of initial LED
 ystart = 20
-arraysize = 15 # side length of lit LED array
+arraysize = 8 # side length of lit LED array
 [xlocation, ylocation] = LED_Location(xstart, ystart, arraysize)
 
-xlocation = np.reshape(xlocation, (1,225))
-ylocation = np.reshape(ylocation, (1,225))
+xlocation = np.reshape(xlocation, (1,arraysize**2))
+ylocation = np.reshape(ylocation, (1,arraysize**2))
 
 H = 90.88 #distance between LED and sample in mm
 LEDp = 4 #distance between adjacent LEDs, in mm
@@ -222,8 +238,8 @@ spsize = 1.845e-6
 upsmp_ratio = 4
 psize = spsize/upsmp_ratio
 
-wlength = dataSet['wlength']
-z = dataSet['z']
+wlength = np.array([[5.32e-07]])
+z = np.array([[2.5e-05]])
 
 opts = {
     "loopNum" : 10, #iteration number
@@ -241,7 +257,9 @@ opts = {
 
 
 
-used_idx = np.asarray(list(range(0,arraysize**2)))
+used_idx = list(range(0,arraysize**2))
+
+
 imlow_used = imgs[:,:,used_idx]
 
 kx_used = kx[0,used_idx]
@@ -277,22 +295,16 @@ kmax = math.pi/psize
 dkx = 2*math.pi/(psize*n)
 dky = 2*math.pi/(psize*m)
 
-kxVal = -kmax
-kx2 = []
-kx2.append(kxVal)
-while kxVal <= kmax:
-    kxVal = kxVal+ (kmax/((n-1)/2))
-    kx2.append(kxVal)
-kx2 = np.reshape(np.asarray(kx2), (1,804))
+kx2 = np.arange(-kmax, kmax, (kmax/((n-1)/2)))
+if (kx2.size < n):
+    kx2 = np.append(kx2, kmax)
+kx2 = np.reshape(np.asarray(kx2), (1,pratio*n1))
     
-kyVal = -kmax
-ky2 = []
-ky2.append(kyVal)
-while kyVal <= kmax:
-    kyVal = kyVal+ (kmax/((m-1)/2))
-    ky2.append(kyVal)
-ky2 = np.reshape(np.asarray(ky2), (1,804))
-
+ky2 = np.arange(-kmax, kmax, (kmax/((n-1)/2)))
+if (ky2.size < m):
+    ky2 = np.append(ky2, kmax)
+ky2 = np.reshape(np.asarray(ky2), (1,pratio*m1))
+    
 [kxm, kym] = np.meshgrid(kx2,ky2)
 kzm = np.sqrt(k0**2-np.power(kxm, 2)-np.power(kym,2))
 
@@ -327,14 +339,13 @@ O_j = np.zeros((m1,n1),dtype=complex)
 #main part to optimise estimate of high-res image
 for i in range(1,3):
     for i3 in range(0,numim):
-        kxc = round((n+1)/2-kx[0,i3]/dkx)
-        kyc = round((m+1)/2-ky[0,i3]/dky)
-        
-        kyl = round(kyc-(m1-1)/2)
-        kyh = round(kyc+(m1-1)/2)
-        
-        kxl = round(kxc-(n1-1)/2)
-        kxh = round(kxc+(n1-1)/2)
+        kxc=int(math.ceil((n+1)/2-kx[0,i3]/dkx));
+        kyc=int(math.ceil((m+1)/2-ky[0,i3]/dky));
+        kyl=int(math.ceil(kyc-(m1-1)/2));
+        kyh=int(math.ceil(kyc+(m1-1)/2));
+            
+        kxl=int(math.ceil(kxc-(n1-1)/2));
+        kxh=int(math.ceil(kxc+(n1-1)/2)); 
         
         for a in range(kyl, kyh+1):
             for b in range(kxl, kxh+1):
@@ -368,13 +379,13 @@ PT = fmaskpro
 for i in range(0, loopNum):
     for i3 in range(0,numim):
         countimg=countimg+1
-        kxc=round((n+1)/2-kx[0,i3]/dkx);
-        kyc=round((m+1)/2-ky[0,i3]/dky);
-        kyl=round(kyc-(m1-1)/2);
-        kyh=round(kyc+(m1-1)/2);
-        
-        kxl=round(kxc-(n1-1)/2);
-        kxh=round(kxc+(n1-1)/2); 
+        kxc=int(math.ceil((n+1)/2-kx[0,i3]/dkx));
+        kyc=int(math.ceil((m+1)/2-ky[0,i3]/dky));
+        kyl=int(math.ceil(kyc-(m1-1)/2));
+        kyh=int(math.ceil(kyc+(m1-1)/2));
+            
+        kxl=int(math.ceil(kxc-(n1-1)/2));
+        kxh=int(math.ceil(kxc+(n1-1)/2));  
         
         for a in range(kyl, kyh+1):
             for b in range(kxl, kxh+1):

@@ -4,7 +4,7 @@ Created on Wed Nov 24 22:57:09 2021
 
 @author: freds
 """
-from scipy.io import loadmat
+import os
 import cv2
 import numpy as np
 import math
@@ -49,15 +49,15 @@ def calculate(x0,y0,H,h,n):
     thetal = math.atan2(y0,x0)
     
     xoff = 0;
-    thetag = -math.asin(l/math.sqrt(l*l+H*H)/n)
-    xint = h*math.tan(thetag)
-    xoff = xoff-xint
-    
+    #thetag = -math.asin(l/math.sqrt(l*l+H*H)/n)
+    #xint = h*math.tan(thetag)
+    #xoff = xoff-xint
+    """
     while abs(xint) > 0.001:
         thetag = -math.asin((l-xoff)/math.sqrt((l-xoff)*(l-xoff)+H*H)/n)
         xint = xoff+h*math.tan(thetag)
         xoff = xoff-xint
-    
+    """
     theta = math.asin((l-xoff)/math.sqrt((l-xoff)*(l-xoff)+H*H))
     
     NAt = abs(math.sin(theta))
@@ -151,13 +151,10 @@ def zernfun(n,m,r,theta):
 
 def gzn(tpixel, NApixel,m,n):
     
-    xVal = -tpixel/NApixel
-    x = []
-    x.append(xVal)
-    while xVal <= tpixel/NApixel:
-        xVal = xVal+ (((tpixel/NApixel)-(-tpixel/NApixel))/(tpixel-1))
-        x.append(xVal)
-    x = np.reshape(x, (1,tpixel))
+    x = np.arange(-tpixel/NApixel, tpixel/NApixel, (((tpixel/NApixel)-(-tpixel/NApixel))/(tpixel-1)))
+    if (x.size < tpixel):
+        x = np.append(x, tpixel/NApixel)
+    x = np.reshape(np.asarray(x), (1,tpixel))
     
     [X,Y] = np.meshgrid(x,x)
     [theta, r] = cart2pol(X,Y)
@@ -209,11 +206,13 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
     
     kx2 = np.arange(-kmax, kmax, (kmax/((n-1)/2)))
     if (kx2.size < n):
-        np.append(kx2, kmax)
+        kx2 = np.append(kx2, kmax)
+    kx2 = np.reshape(np.asarray(kx2), (1,pratio*n1))
     
     ky2 = np.arange(-kmax, kmax, (kmax/((n-1)/2)))
     if (ky2.size < m):
-        np.append(ky2, kmax)
+        ky2 = np.append(ky2, kmax)
+    ky2 = np.reshape(np.asarray(ky2), (1,pratio*m1))
     
     [kxm, kym] = np.meshgrid(kx2,ky2)
     kzm = np.sqrt(k0**2-np.power(kxm, 2)-np.power(kym,2))
@@ -245,20 +244,22 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
     fmaskpro = np.multiply(np.multiply(fmaskproPT1,fmaskproPT2), fmaskproPT3)
 
     him = imresize(np.sum(imseqlow, axis = 2), output_shape=(m,n))
+    himEst =cv2.normalize(np.abs(him[:,:]),dst,0,1,cv2.NORM_MINMAX)
+    cv2.imshow("Estimate", cv2.resize(himEst,(380*2,380*2)))
+    
     himFT = np.fft.fftshift(np.fft.fft2(him))
     O_j = np.zeros((m1,n1),dtype=complex)
     
     #main part to optimise estimate of high-res image
     for i in range(1,3):
         for i3 in range(0,numim):
-            kxc = int(round((n+1)/2-kx[0,i3]/dkx))
-            kyc = int(round((m+1)/2-ky[0,i3]/dky))
+            kxc=int(math.ceil((n+1)/2-kx[0,i3]/dkx));
+            kyc=int(math.ceil((m+1)/2-ky[0,i3]/dky));
+            kyl=int(math.ceil(kyc-(m1-1)/2));
+            kyh=int(math.ceil(kyc+(m1-1)/2));
             
-            kyl = int(round(kyc-(m1-1)/2))
-            kyh = int(round(kyc+(m1-1)/2))
-            
-            kxl = int(round(kxc-(n1-1)/2))
-            kxh = int(round(kxc+(n1-1)/2))
+            kxl=int(math.ceil(kxc-(n1-1)/2));
+            kxh=int(math.ceil(kxc+(n1-1)/2)); 
             
             for a in range(kyl, kyh+1):
                 for b in range(kxl, kxh+1):
@@ -287,15 +288,16 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
     PT = fmaskpro
     
     for i in range(0, loopNum):
+        print(i)
         for i3 in range(0,numim):
             countimg=countimg+1
-            kxc=int(round((n+1)/2-kx[0,i3]/dkx));
-            kyc=int(round((m+1)/2-ky[0,i3]/dky));
-            kyl=int(round(kyc-(m1-1)/2));
-            kyh=int(round(kyc+(m1-1)/2));
+            kxc=int(math.ceil((n+1)/2-kx[0,i3]/dkx));
+            kyc=int(math.ceil((m+1)/2-ky[0,i3]/dky));
+            kyl=int(math.ceil(kyc-(m1-1)/2));
+            kyh=int(math.ceil(kyc+(m1-1)/2));
             
-            kxl=int(round(kxc-(n1-1)/2));
-            kxh=int(round(kxc+(n1-1)/2)); 
+            kxl=int(math.ceil(kxc-(n1-1)/2));
+            kxh=int(math.ceil(kxc+(n1-1)/2)); 
             
             for a in range(kyl, kyh+1):
                 for b in range(kxl, kxh+1):
@@ -348,47 +350,68 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
     him = np.fft.ifft2(np.fft.ifftshift(himFT))
     return him, tt, fmaskpro, imseqlow
 
+def cropImage (img, cropfactor):
+    num, cropy, cropx = img.shape
+    cropystart = int(cropy/cropfactor - cropy/(cropfactor*2))
+    cropyend = int(cropy/cropfactor + cropy/(cropfactor*2))
+    cropxstart = int(cropx/cropfactor - cropy/(cropfactor*2))
+    cropxend = int(cropx/cropfactor + cropy/(cropfactor*2))
+    
+    img = img[:, cropystart:cropyend, cropxstart:cropxend]
+    return img
 
-dataSet = loadmat('MouseKidney_green')
-imgs = dataSet['imlow_HDR']
-dst = np.zeros(shape=(201,201))
+instances = []
+
+# Load in the images
+for filepath in os.listdir('Experiment DataSet\img_database_jpg_2022_03_09_1/'):
+    instances.append(cv2.imread('Experiment DataSet\img_database_jpg_2022_03_09_1/'+filepath,1))
+
+dataSet = np.asarray(instances)
+greenDataSet = dataSet[:,:,:,1]
+
+greenDataSet = cropImage(greenDataSet, 2)
+greenDataSet = cropImage(greenDataSet, 2)
+#greenDataSet = cropImage(greenDataSet, 2)
+
+imgs = np.transpose(greenDataSet, (1,2,0))
+imgsy, imgsx, numim = imgs.shape
+dst = np.zeros(shape=(imgsy,imgsx))
 
 is_show = 'centre' #'centre' shows first low res raw image; 'all' loads all dynamically
 if (is_show == 'centre'):
-    cv2.imshow("Mouse Kidney", imgs[:,:,1])
+    cv2.imshow("Experiment Data", cv2.resize(imgs[:,:,0],(380,380)))
 elif(is_show=='all'):
-    for i in range(225):
-        cv2.imshow("Mouse Kidney",imgs[:,:,i])
+    for i in range(numim):
+        cv2.imshow("Experiment Data",cv2.resize(imgs[:,:,i],(380,380)))
         cv2.waitKey()
         cv2.destroyAllWindows()
 
 #Setup experiment Parameters   
-xstart = 18 #absolute coordinate of initial LED
-ystart = 20
-arraysize = 15 # side length of lit LED array
+xstart = 7 #absolute coordinate of initial LED
+ystart = 7
+arraysize = 8 # side length of lit LED array
 [xlocation, ylocation] = LED_Location(xstart, ystart, arraysize)
 
-xlocation = np.reshape(xlocation, (1,225))
-ylocation = np.reshape(ylocation, (1,225))
+xlocation = np.reshape(xlocation, (1,arraysize**2))
+ylocation = np.reshape(ylocation, (1,arraysize**2))
 
-H = 90.88 #distance between LED and sample in mm
+H = 60 #distance between LED and sample in mm
 LEDp = 4 #distance between adjacent LEDs, in mm
 nglass = 1.52 #refraction index of glass substrate
 t = 1 #glass thickness in mm
 theta = 0 #rotation angle of LED array to the camera sensor frame, in degrees
-xint = 0 # off set of initial LED to the patch centre, in mm
-yint = 0
-
+xint = -1.65 # off set of initial LED to the patch centre, in mm
+yint = -1.65
 [kx, ky, NAt] = k_vector(xlocation-xstart, ylocation-ystart, H, LEDp, nglass, t, theta, xint, yint, arraysize*arraysize)
 
 #Reconstruct by FP algorithm
 NA = 0.1
-spsize = 1.845e-6
+spsize = 0.6e-6
 upsmp_ratio = 4
 psize = spsize/upsmp_ratio
 
-wlength = dataSet['wlength']
-z = dataSet['z']
+wlength = np.array([[5.32e-07]])
+z = np.array([[2.5e-05]])
 
 opts = {
     "loopNum" : 10, #iteration number
@@ -399,14 +422,11 @@ opts = {
     "eta_obj" : 0.2, #stepsize for adding momentumn to object updating
     "eta_p" : 0.2, #stepsize for adding momentumn to pupil updating
     "T" : 1, #do momentumn every T images
-    "aberration" : dataSet['aberration'], #pre-calibrated aberration, if available
+    "aberration" : 0, #pre-calibrated aberration, if available
 }
 
 
-
-
-
-used_idx = list(range(0,arraysize**2))
+used_idx = list(range(0,25))
 
 
 imlow_used = imgs[:,:,used_idx]
@@ -418,6 +438,6 @@ ky_used = ky[0,used_idx]
 
 himOutAmp =cv2.normalize(np.abs(him[:,:]),dst,0,1,cv2.NORM_MINMAX)
 himOutPha =cv2.normalize(np.angle(him[:,:]),dst,0,1,cv2.NORM_MINMAX)
-cv2.imshow("Mouse Kidney Amplitude", himOutAmp)
-cv2.imshow("Mouse Kidney Phase", himOutPha)
+cv2.imshow("Mouse Kidney Amplitude", cv2.resize(himOutAmp,(380*2,380*2)))
+cv2.imshow("Mouse Kidney Phase", cv2.resize(himOutPha,(380*2,380*2)))
     
