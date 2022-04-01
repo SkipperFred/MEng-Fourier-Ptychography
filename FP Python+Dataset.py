@@ -10,6 +10,13 @@ import numpy as np
 import math
 from imresize import imresize
 
+def roundHalfUp(num):
+    decVal = num-math.floor(num)
+    if (decVal<0.5):
+        roundNum = math.floor(num)
+    elif (decVal>=0.5):
+        roundNum = math.ceil(num)
+    return roundNum
 
 def LED_Location(xstart,ystart,arraysize):
     xorynode=np.zeros(70)
@@ -49,15 +56,47 @@ def calculate(x0,y0,H,h,n):
     thetal = math.atan2(y0,x0)
     
     xoff = 0;
-    #thetag = -math.asin(l/math.sqrt(l*l+H*H)/n)
-    #xint = h*math.tan(thetag)
-    #xoff = xoff-xint
-    """
+    thetag = -math.asin(l/math.sqrt(l*l+H*H)/n)
+    xint = h*math.tan(thetag)
+    xoff = xoff-xint
+    
     while abs(xint) > 0.001:
         thetag = -math.asin((l-xoff)/math.sqrt((l-xoff)*(l-xoff)+H*H)/n)
         xint = xoff+h*math.tan(thetag)
         xoff = xoff-xint
-    """
+    
+    theta = math.asin((l-xoff)/math.sqrt((l-xoff)*(l-xoff)+H*H))
+    
+    NAt = abs(math.sin(theta))
+    kx = -NAt*math.cos(thetal)
+    ky = -NAt*math.sin(thetal)
+    
+    return kx, ky, NAt
+
+def calculateRing(LEDNum,H,h,n):
+    if LEDNum < 8:
+        l = 12
+        thetal = LEDNum*(360/8)
+    elif LEDNum<8+12:
+        l = 21
+        thetal = (LEDNum-8)*(360/12)
+    elif LEDNum<8+12+16:
+        l = 30
+        thetal = (LEDNum-(8+12))*(360/16)
+    else:
+        l = 39
+        thetal = (LEDNum-(8+12+16))*(360/24)
+    
+    xoff = 0;
+    thetag = -math.asin(l/math.sqrt(l*l+H*H)/n)
+    xint = h*math.tan(thetag)
+    xoff = xoff-xint
+    
+    while abs(xint) > 0.001:
+        thetag = -math.asin((l-xoff)/math.sqrt((l-xoff)*(l-xoff)+H*H)/n)
+        xint = xoff+h*math.tan(thetag)
+        xoff = xoff-xint
+    
     theta = math.asin((l-xoff)/math.sqrt((l-xoff)*(l-xoff)+H*H))
     
     NAt = abs(math.sin(theta))
@@ -70,13 +109,22 @@ def k_vector(xi, yi, H, LEDp, nglass, t, theta, xint, yint, total):
     kx = np.zeros((1,total))
     ky = np.zeros((1,total))
     NAt = np.zeros((1,total))
-    
+
     for tt in range(total):
         x0 = xint+xi[0,tt]*LEDp #from rightmost position
         y0 = yint+yi[0,tt]*LEDp #from topmost position
         x1 = x0*math.cos(theta*math.pi/180)-y0*math.sin(theta*math.pi/180)
         y1 = x0*math.sin(theta*math.pi/180)+y0*math.cos(theta*math.pi/180)
-        kx[0,tt],ky[0,tt],NAt[0,tt] = calculate(x1,y1,H,t,nglass)
+        kx[0,tt],ky[0,tt],NAt[0,tt] = calculate(x1,y1,H,t,nglass)    
+    return kx, ky, NAt
+
+def k_vectorRing(xi, yi, H, LEDp, nglass, t, theta, xint, yint, total):
+    kx = np.zeros((1,total))
+    ky = np.zeros((1,total))
+    NAt = np.zeros((1,total))
+
+    for tt in range(total):
+        kx[0,tt],ky[0,tt],NAt[0,tt] = calculateRing(tt,H,t,nglass)    
     return kx, ky, NAt
 
 def cart2pol(x,y):
@@ -192,7 +240,7 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
           
     #k-space parameterisation
     [m1, n1, numim] = imseqlow.shape
-    pratio = round(spsize/psize)
+    pratio = roundHalfUp(spsize/psize)
     m = pratio*m1
     n = pratio*n1
     k0 = 2*math.pi/wlength
@@ -253,13 +301,13 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
     #main part to optimise estimate of high-res image
     for i in range(1,3):
         for i3 in range(0,numim):
-            kxc=int(math.ceil((n+1)/2-kx[0,i3]/dkx));
-            kyc=int(math.ceil((m+1)/2-ky[0,i3]/dky));
-            kyl=int(math.ceil(kyc-(m1-1)/2));
-            kyh=int(math.ceil(kyc+(m1-1)/2));
+            kxc=int(roundHalfUp((n+1)/2-kx[0,i3]/dkx));
+            kyc=int(roundHalfUp((m+1)/2-ky[0,i3]/dky));
+            kyl=int(roundHalfUp(kyc-(m1-1)/2));
+            kyh=int(roundHalfUp(kyc+(m1-1)/2));
             
-            kxl=int(math.ceil(kxc-(n1-1)/2));
-            kxh=int(math.ceil(kxc+(n1-1)/2)); 
+            kxl=int(roundHalfUp(kxc-(n1-1)/2));
+            kxh=int(roundHalfUp(kxc+(n1-1)/2)); 
             
             for a in range(kyl, kyh+1):
                 for b in range(kxl, kxh+1):
@@ -291,13 +339,13 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
         print(i)
         for i3 in range(0,numim):
             countimg=countimg+1
-            kxc=int(math.ceil((n+1)/2-kx[0,i3]/dkx));
-            kyc=int(math.ceil((m+1)/2-ky[0,i3]/dky));
-            kyl=int(math.ceil(kyc-(m1-1)/2));
-            kyh=int(math.ceil(kyc+(m1-1)/2));
+            kxc=int(roundHalfUp((n+1)/2-kx[0,i3]/dkx));
+            kyc=int(roundHalfUp((m+1)/2-ky[0,i3]/dky));
+            kyl=int(roundHalfUp(kyc-(m1-1)/2));
+            kyh=int(roundHalfUp(kyc+(m1-1)/2));
             
-            kxl=int(math.ceil(kxc-(n1-1)/2));
-            kxh=int(math.ceil(kxc+(n1-1)/2)); 
+            kxl=int(roundHalfUp(kxc-(n1-1)/2));
+            kxh=int(roundHalfUp(kxc+(n1-1)/2)); 
             
             for a in range(kyl, kyh+1):
                 for b in range(kxl, kxh+1):
@@ -363,8 +411,8 @@ def cropImage (img, cropfactor):
 instances = []
 
 # Load in the images
-for filepath in os.listdir('Experiment DataSet\img_database_jpg_2022_03_09_1/'):
-    instances.append(cv2.imread('Experiment DataSet\img_database_jpg_2022_03_09_1/'+filepath,1))
+for filepath in os.listdir('Experiment DataSet\img_database_png_2022_03_24_4/'):
+    instances.append(cv2.imread('Experiment DataSet\img_database_png_2022_03_24_4/'+filepath,1))
 
 dataSet = np.asarray(instances)
 greenDataSet = dataSet[:,:,:,1]
@@ -386,27 +434,32 @@ elif(is_show=='all'):
         cv2.waitKey()
         cv2.destroyAllWindows()
 
-#Setup experiment Parameters   
-xstart = 7 #absolute coordinate of initial LED
-ystart = 7
+#Setup experiment Parameters
+LEDMode = "grid" #ring or grid LED layout
+xstart = 18 #absolute coordinate of initial LED
+ystart = 20
 arraysize = 8 # side length of lit LED array
+ringTotal = 60 # total length of Ring LED array
 [xlocation, ylocation] = LED_Location(xstart, ystart, arraysize)
 
 xlocation = np.reshape(xlocation, (1,arraysize**2))
 ylocation = np.reshape(ylocation, (1,arraysize**2))
 
-H = 60 #distance between LED and sample in mm
-LEDp = 4 #distance between adjacent LEDs, in mm
+H = 49 #distance between LED and sample in mm
+LEDp = 3.4 #distance between adjacent LEDs, in mm
 nglass = 1.52 #refraction index of glass substrate
-t = 1 #glass thickness in mm
+t = 0 #glass thickness in mm
 theta = 0 #rotation angle of LED array to the camera sensor frame, in degrees
-xint = -1.65 # off set of initial LED to the patch centre, in mm
-yint = -1.65
-[kx, ky, NAt] = k_vector(xlocation-xstart, ylocation-ystart, H, LEDp, nglass, t, theta, xint, yint, arraysize*arraysize)
+xint = -1.7 # off set of initial LED to the patch centre, in mm
+yint = -1.7
+if (LEDMode == "grid"):
+    [kx, ky, NAt] = k_vector(xlocation-xstart, ylocation-ystart, H, LEDp, nglass, t, theta, xint, yint, arraysize*arraysize)
+elif (LEDMode == "ring"):
+    [kx, ky, NAt] = k_vectorRing(xlocation-xstart, ylocation-ystart, H, LEDp, nglass, t, theta, xint, yint, ringTotal)
 
 #Reconstruct by FP algorithm
-NA = 0.1
-spsize = 0.6e-6
+NA = 0.25
+spsize = 2e-6
 upsmp_ratio = 4
 psize = spsize/upsmp_ratio
 
@@ -426,7 +479,7 @@ opts = {
 }
 
 
-used_idx = list(range(0,25))
+used_idx = list(range(0,64))
 
 
 imlow_used = imgs[:,:,used_idx]
@@ -436,8 +489,10 @@ ky_used = ky[0,used_idx]
 
 [him, tt, fprobe, imLow_HDR1] = himrecover(imlow_used, kx_used, ky_used, NA, wlength, spsize, psize, z, opts)
 
-himOutAmp =cv2.normalize(np.abs(him[:,:]),dst,0,1,cv2.NORM_MINMAX)
+#himOutAmp =cv2.normalize(np.abs(him[:,:]),dst,0,1,cv2.NORM_MINMAX)
+himOutAmp = cv2.normalize(np.abs(him[:,:]), None, 255,0, cv2.NORM_MINMAX, cv2.CV_8UC1)
 himOutPha =cv2.normalize(np.angle(him[:,:]),dst,0,1,cv2.NORM_MINMAX)
-cv2.imshow("Mouse Kidney Amplitude", cv2.resize(himOutAmp,(380*2,380*2)))
-cv2.imshow("Mouse Kidney Phase", cv2.resize(himOutPha,(380*2,380*2)))
+cv2.imshow("Amplitude", cv2.resize(himOutAmp,(380*2,380*2)))
+cv2.imshow("Phase", cv2.resize(himOutPha,(380*2,380*2)))
+cv2.imshow("Combined", cv2.resize(np.real(him),(380*2,380*2)))
     
