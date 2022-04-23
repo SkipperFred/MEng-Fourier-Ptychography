@@ -292,15 +292,13 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
             kxc=int(round((n+1)/2-kx[0,i3]/dkx));
             kyc=int(round((m+1)/2-ky[0,i3]/dky));
             kyl=int(round(kyc-(m1-1)/2));
-            kyh=int(round(kyc+(m1-1)/2));
-            
+            kyh=int(round(kyc+(m1-1)/2));  
             kxl=int(round(kxc-(n1-1)/2));
             kxh=int(round(kxc+(n1-1)/2)); 
             
             for a in range(kyl, kyh+1):
                 for b in range(kxl, kxh+1):
                     O_j[(a-kyl),(b-kxl)] = himFT[a,b]
-        
         
             lowFT = np.multiply(O_j, fmaskpro)
             im_lowFT = np.fft.ifft2(np.fft.ifftshift(lowFT))
