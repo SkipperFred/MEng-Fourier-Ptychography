@@ -366,8 +366,8 @@ ystart = 20
 arraysize = 15 # side length of lit LED array
 [xlocation, ylocation] = LED_Location(xstart, ystart, arraysize)
 
-xlocation = np.reshape(xlocation, (1,225))
-ylocation = np.reshape(ylocation, (1,225))
+xlocation = np.reshape(xlocation, (1,arraysize**2))
+ylocation = np.reshape(ylocation, (1,arraysize**2))
 
 H = 90.88 #distance between LED and sample in mm
 LEDp = 4 #distance between adjacent LEDs, in mm

@@ -50,16 +50,31 @@ def LED_Location(xstart,ystart,arraysize):
             ylocation[i] = ylocation[i-1]+(int(-1)**int((((xy_order-1)/2)%2)+1))
     return xlocation, ylocation  
 
-instances = []
+def loadImage(filepathName):
+    instances = []
 
-# Load in the images
-for filepath in os.listdir('Experiment DataSet\paper USAF 2104/'):
-    instances.append(cv2.imread('Experiment DataSet\paper USAF 2104/'+filepath,1))
+    # Load in the images
+    for filepath in os.listdir(filepathName):
+        instances.append(cv2.imread(filepathName+filepath,1))#Images loaded as numpy arrays into list
 
-dataSet = np.asarray(instances)
-greenDataSet = dataSet[:,:,507:3547,1]
-greenDataSet = np.transpose(greenDataSet, [1,2,0])
+    dataSet = np.asarray(instances) #Convert list into numpy array
 
+    #find the colour channel with highest mean value
+    if (np.mean(dataSet[:,:,:,0])>np.mean(dataSet[:,:,:,1])) and (np.mean(dataSet[:,:,:,0])>np.mean(dataSet[:,:,:,2])):
+        colourChannel = 0
+        print("r")
+    elif (np.mean(dataSet[:,:,:,1])>np.mean(dataSet[:,:,:,0])) and (np.mean(dataSet[:,:,:,1])>np.mean(dataSet[:,:,:,2])):
+        colourChannel = 1;
+        print("g")
+    elif (np.mean(dataSet[:,:,:,2])>np.mean(dataSet[:,:,:,0])) and (np.mean(dataSet[:,:,:,2])>np.mean(dataSet[:,:,:,1])):
+        colourChannel = 2;
+        print("b")
+
+    DataSetOut = dataSet[:,:,507:3547,colourChannel] #Sekect only one colour channel
+    DataSetOut = np.transpose(DataSetOut, [1,2,0])
+    return DataSetOut
+
+DataSet = loadImage('Experiment DataSet\Squiggle 2904/')
 theta = 0
 wavelength = 5.32e-07
 
@@ -68,9 +83,9 @@ yint = 0
 edge = 60
 
 arraysize = 15
-LEDheight      = 60;
+LEDheight = 30.5
 LEDgap   = 3.4*0.5
-pratio = 2
+pratio = 4
 
 xlocation = np.zeros([arraysize,arraysize])
 ylocation = np.zeros([arraysize,arraysize])
@@ -88,13 +103,14 @@ ky_relative = np.sin(np.arctan(ylocation/LEDheight));
 k0 = 2*np.pi/wavelength;
 kx = k0*kx_relative;
 ky = k0*ky_relative;
-spsize = 1.27e-6;
-psize = spsize/pratio;
-NA = 0.4;
-used_img = np.arange(0,64,1);
 
-m1 =  np.size(greenDataSet,0);
-n1 =  np.size(greenDataSet,1);
+spsize = 1.27e-6
+psize = spsize/pratio
+NA = 0.2323;
+used_img = np.arange(0,25,1);
+
+m1 =  np.size(DataSet,0);
+n1 =  np.size(DataSet,1);
 
 m = int((spsize/psize)*m1);
 n = int((spsize/psize)*n1);
@@ -106,10 +122,10 @@ dky = 2*np.pi/(psize*m);
 cutoffFrequency = NA*k0;
 kmax = np.pi/spsize;
 
-[kxm,kym]=np.meshgrid(np.arange(-kmax,kmax+1,kmax/((n1-1)/2)),np.arange(-kmax,kmax+1,kmax/((n1-1)/2)));
+[kxm,kym]=np.meshgrid(np.arange(-kmax,kmax+1,kmax/((n1-1)/2)),np.arange(-kmax,kmax+1,kmax/((n1-1)/2)))
 
-CTF = np.zeros([m1,n1]);
-CTF = ((np.power(kxm,2)+np.power(kym,2))<cutoffFrequency**2);
+CTF = np.zeros([m1,n1])
+CTF = ((np.power(kxm,2)+np.power(kym,2))<cutoffFrequency**2)
 
 xstart = 8 
 ystart = 8
@@ -130,7 +146,7 @@ for i in range(0,max(xlocation2.shape)):
 
 objectRecover = np.ones([m,n])
 objectRecoverFT = np.fft.fftshift(np.fft.fft2(objectRecover));
-loop = 5;
+loop = 7;
 for tt in range(loop):
     print(tt)
     for i3 in range(0,max(used_img.shape)):
@@ -143,20 +159,12 @@ for tt in range(loop):
         kxl = roundHalfUp(kxc-(n1-1)/2)
         kxh = roundHalfUp(kxc+(n1-1)/2)
         
-        lowResFT = ((m1/m)**2)*np.multiply(objectRecoverFT[kyl:kyh+1,kxl:kxh+1],CTF);
-        # lowResFT = np.zeros([m1,n1], np.complex128)
-        # for a in range(kyl, kyh+1):
-        #     for b in range(kxl, kxh+1):
-        #         lowResFT[(a-kyl),(b-kxl)] = ((m1/m)**2)*np.multiply(objectRecoverFT[a,b],CTF[a-kyl,b-kxl])
-        
-        im_lowRes = np.fft.ifft2(np.fft.ifftshift(lowResFT));
-        im_lowRes = ((m1/m)**2)*np.multiply(greenDataSet[:,:,i3],np.exp(np.multiply(1j,np.angle(im_lowRes))));
-        lowResFT=np.multiply(np.fft.fftshift(np.fft.fft2(im_lowRes)),CTF);
-        objectRecoverFT[kyl:kyh+1,kxl:kxh+1]=np.multiply((1-CTF),objectRecoverFT[kyl:kyh+1,kxl:kxh+1]) + lowResFT;
-        # for a in range(kyl, kyh+1):
-        #     for b in range(kxl, kxh+1):
-        #         objectRecoverFT[a,b] = np.multiply((1-CTF[a-kyl,b-kxl]),objectRecoverFT[a,b]) +lowResFT[a-kyl,b-kxl]
-
+        lowResFT = ((m1/m)**2)*np.multiply(objectRecoverFT[kyl:kyh+1,kxl:kxh+1],CTF)
+        im_lowRes = np.fft.ifft2(np.fft.ifftshift(lowResFT))
+        im_lowRes = ((m1/m)**2)*np.multiply(DataSet[:,:,i3],np.exp(np.multiply(1j,np.angle(im_lowRes))))
+        lowResFT=np.multiply(np.fft.fftshift(np.fft.fft2(im_lowRes)),CTF)
+        objectRecoverFT[kyl:kyh+1,kxl:kxh+1]=np.multiply((1-CTF),objectRecoverFT[kyl:kyh+1,kxl:kxh+1])+lowResFT
+       
 objectRecover = np.fft.ifft2(np.fft.ifftshift(objectRecoverFT))
 himOutAmp = cv2.normalize(np.abs(objectRecover[:,:]), None, 255,0, cv2.NORM_MINMAX, cv2.CV_8UC1)
 himOutPha =cv2.normalize(np.angle(objectRecover[:,:]),dst,0,1,cv2.NORM_MINMAX)
@@ -164,3 +172,8 @@ himOutReal = cv2.normalize(np.real(objectRecover[:,:]), None, 255,0, cv2.NORM_MI
 cv2.imshow("Amplitude", cv2.resize(himOutAmp,(380*2,380*2)))
 cv2.imshow("Phase", cv2.resize(himOutPha,(380*2,380*2)))
 cv2.imshow("Combined", cv2.resize(himOutReal,(380*2,380*2)))
+
+backtorgb = cv2.cvtColor(himOutReal,cv2.COLOR_GRAY2RGB)
+backtorgb[:,:,0] = 0;
+backtorgb[:,:,2] = 0;
+cv2.imshow("Colour", cv2.resize(backtorgb,(380*2,380*2)))

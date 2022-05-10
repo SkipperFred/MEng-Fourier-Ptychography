@@ -285,9 +285,9 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
     fmaskA = (np.arange(math.ceil((m+1)/2 - (m1-1)/2), (math.ceil((m+1)/2+(m1-1)/2))+1))
     fmaskB = (np.arange((math.ceil((n+1)/2 - (n1-1)/2)), (math.ceil((n+1)/2+(n1-1)/2))+1))
     fmaskproPT2 = np.zeros((len(fmaskA),len(fmaskB)), dtype="complex128")
-    for a in range(len(fmaskA)):
-        for b in range(len(fmaskB)):
-            fmaskproPT2[a,b] = H2[fmaskA[a]-1,fmaskB[b]-1]
+    
+    fmaskproPT2 = H2[fmaskA-1,fmaskB-1]
+            
     fmaskproPT3 = np.exp(np.multiply(np.pi*1j,zn))
     fmaskpro = np.multiply(np.multiply(fmaskproPT1,fmaskproPT2), fmaskproPT3)
 
@@ -309,9 +309,7 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
             kxl=int(roundHalfUp(kxc-(n1-1)/2));
             kxh=int(roundHalfUp(kxc+(n1-1)/2)); 
             
-            for a in range(kyl, kyh+1):
-                for b in range(kxl, kxh+1):
-                    O_j[(a-kyl),(b-kxl)] = himFT[a,b]
+            O_j = himFT[kyl:kyh+1,kxl:kxh+1]
             
             lowFT = np.multiply(O_j,fmaskpro)
             im_lowFT = np.fft.ifft2(np.fft.ifftshift(lowFT))
@@ -323,9 +321,8 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
             ftUp2 = np.max(np.max(np.power((abs(fmaskpro)), 2)))
             ftUp3 = (lowFT_p - lowFT)
             ftTemp = np.multiply((np.divide(ftUp, ftUp2)), ftUp3)
-            for a in range(kyl, kyh+1):
-                for b in range(kxl, kxh+1):
-                    himFT[a,b] = himFT[a,b] + ftTemp[a-kyl,b-kxl]
+            
+            himFT[kyl:kyh+1,kxl:kxh+1] = himFT[kyl:kyh+1,kxl:kxh+1] + ftTemp
              
     countimg = 0
     tt = np.reshape(np.ones(loopNum*numim), (1, loopNum*numim))
@@ -347,10 +344,7 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
             kxl=int(roundHalfUp(kxc-(n1-1)/2));
             kxh=int(roundHalfUp(kxc+(n1-1)/2)); 
             
-            for a in range(kyl, kyh+1):
-                for b in range(kxl, kxh+1):
-                    O_j[(a-kyl),(b-kxl)] = himFT[a,b]
-        
+            O_j = himFT[kyl:kyh+1,kxl:kxh+1]        
         
             lowFT = np.multiply(O_j, fmaskpro)
             im_lowFT = np.fft.ifft2(np.fft.ifftshift(lowFT))
@@ -369,9 +363,7 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
             ftUp4 = np.conj(fmaskpro)
             ftTemp = np.multiply(gamma_obj, np.multiply(ftUp4,(np.divide(ftUp3, ftUp + ftUp2))))
         
-            for a in range(kyl,kyh+1):
-                for b in range(kxl, kxh+1):
-                    himFT[a,b] = himFT[a,b] + ftTemp[a-kyl,b-kxl]
+            himFT[kyl:kyh+1,kxl:kxh+1] = himFT[kyl:kyh+1,kxl:kxh+1] + ftTemp
         
             fmaskUp = np.multiply(beta,np.max(np.max(np.power(abs(O_j),2))))
             fmaskUp2 = np.multiply((1-beta),np.power(abs(O_j),2))
@@ -379,9 +371,7 @@ def himrecover(imseqlow,kx,ky,NA,wlength,spsize,psize,z, opts):
             fmaskUp4 = np.conj(O_j)
             fmaskTemp = np.multiply(gamma_p, np.multiply(fmaskUp4,np.divide(fmaskUp3,(fmaskUp2 + fmaskUp)) ))
         
-            for a in range(0, m1):
-                for b in range(0,n1):
-                    fmaskpro[a,b] = fmaskpro[a,b]+ fmaskTemp[a,b]
+            fmaskpro = fmaskpro+ fmaskTemp
             
             if (countimg == T):
                 vobj = np.multiply(eta_obj,vobj0) + (himFT - ObjT)
@@ -408,66 +398,70 @@ def cropImage (img, cropfactor):
     img = img[:, cropystart:cropyend, cropxstart:cropxend]
     return img
 
-instances = []
+def loadImage(filepathName):
+    instances = []
 
-# Load in the images
-for filepath in os.listdir('Experiment DataSet\img_database_png_2022_03_24_4/'):
-    instances.append(cv2.imread('Experiment DataSet\img_database_png_2022_03_24_4/'+filepath,1))
+    # Load in the images
+    for filepath in os.listdir(filepathName):
+        instances.append(cv2.imread(filepathName+filepath,1))#Images loaded as numpy arrays into list
 
-dataSet = np.asarray(instances)
-greenDataSet = dataSet[:,:,:,1]
+    dataSet = np.asarray(instances) #Convert list into numpy array
 
-greenDataSet = cropImage(greenDataSet, 2)
-greenDataSet = cropImage(greenDataSet, 2)
-#greenDataSet = cropImage(greenDataSet, 2)
+    #find the colour channel with highest mean value
+    if (np.mean(dataSet[:,:,:,0])>np.mean(dataSet[:,:,:,1])) and (np.mean(dataSet[:,:,:,0])>np.mean(dataSet[:,:,:,2])):
+        colourChannel = 0
+        print("r")
+    elif (np.mean(dataSet[:,:,:,1])>np.mean(dataSet[:,:,:,0])) and (np.mean(dataSet[:,:,:,1])>np.mean(dataSet[:,:,:,2])):
+        colourChannel = 1;
+        print("g")
+    elif (np.mean(dataSet[:,:,:,2])>np.mean(dataSet[:,:,:,0])) and (np.mean(dataSet[:,:,:,2])>np.mean(dataSet[:,:,:,1])):
+        colourChannel = 2;
+        print("b")
 
-imgs = np.transpose(greenDataSet, (1,2,0))
+    DataSetOut = dataSet[:,:,507:3547,colourChannel] #Sekect only one colour channel
+    DataSetOut = np.transpose(DataSetOut, [1,2,0])
+    return DataSetOut
+
+imgs = loadImage('Experiment DataSet\paper USAF 2104/')
 imgsy, imgsx, numim = imgs.shape
 dst = np.zeros(shape=(imgsy,imgsx))
 
-is_show = 'centre' #'centre' shows first low res raw image; 'all' loads all dynamically
-if (is_show == 'centre'):
-    cv2.imshow("Experiment Data", cv2.resize(imgs[:,:,0],(380,380)))
-elif(is_show=='all'):
-    for i in range(numim):
-        cv2.imshow("Experiment Data",cv2.resize(imgs[:,:,i],(380,380)))
-        cv2.waitKey()
-        cv2.destroyAllWindows()
 
 #Setup experiment Parameters
 LEDMode = "grid" #ring or grid LED layout
-xstart = 18 #absolute coordinate of initial LED
-ystart = 20
-arraysize = 8 # side length of lit LED array
+xstart = 8 #absolute coordinate of initial LED
+ystart = 8
+arraysize = 15 # side length of lit LED array
 ringTotal = 60 # total length of Ring LED array
 [xlocation, ylocation] = LED_Location(xstart, ystart, arraysize)
 
 xlocation = np.reshape(xlocation, (1,arraysize**2))
 ylocation = np.reshape(ylocation, (1,arraysize**2))
+ylocation = np.subtract(arraysize-1, ylocation)
 
-H = 49 #distance between LED and sample in mm
-LEDp = 3.4 #distance between adjacent LEDs, in mm
+H = 60 #distance between LED and sample in mm
+LEDp = 3.4*0.5 #distance between adjacent LEDs, in mm
 nglass = 1.52 #refraction index of glass substrate
 t = 0 #glass thickness in mm
 theta = 0 #rotation angle of LED array to the camera sensor frame, in degrees
-xint = -1.7 # off set of initial LED to the patch centre, in mm
-yint = -1.7
+xint = 0 # off set of initial LED to the patch centre, in mm
+yint = 0
 if (LEDMode == "grid"):
     [kx, ky, NAt] = k_vector(xlocation-xstart, ylocation-ystart, H, LEDp, nglass, t, theta, xint, yint, arraysize*arraysize)
 elif (LEDMode == "ring"):
     [kx, ky, NAt] = k_vectorRing(xlocation-xstart, ylocation-ystart, H, LEDp, nglass, t, theta, xint, yint, ringTotal)
 
 #Reconstruct by FP algorithm
-NA = 0.25
-spsize = 2e-6
-upsmp_ratio = 4
+NA = 0.4
+spsize = 1.27e-6
+upsmp_ratio = 2
 psize = spsize/upsmp_ratio
 
 wlength = np.array([[5.32e-07]])
 z = np.array([[2.5e-05]])
 
 opts = {
-    "loopNum" : 10, #iteration number
+    "loopNum" : 5, #iteration number
     "alpha" : 1, #'1' for ePIE, other value for rPIE
     "beta" : 1, #'1' for ePIE, other value for rPIE
     "gamma_obj" : 1, #step size for object updating
@@ -479,7 +473,7 @@ opts = {
 }
 
 
-used_idx = list(range(0,64))
+used_idx = list(range(0,49))
 
 
 imlow_used = imgs[:,:,used_idx]
